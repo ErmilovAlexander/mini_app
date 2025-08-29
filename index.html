@@ -1,25 +1,438 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>My Mini App</title>
+  <meta charset="UTF-8" />
+  <title>Whack-a-Mole • Telegram Mini App (1-file)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Telegram Web Apps SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #ffffff;
+      --fg: #111111;
+      --muted: #666;
+      --acc: #4c8bf5;
+      --card: #f3f4f6;
+      --danger: #f97316;
+      --success: #10b981;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    .container {
+      max-width: 540px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .title h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+    .chip {
+      font-size: 12px;
+      background: var(--card);
+      color: var(--muted);
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
+    .user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .user img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--card);
+      flex: 0 0 auto;
+    }
+    .user .name { font-weight: 600; }
+    .user .theme { font-size: 12px; color: var(--muted); }
+
+    .status {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 14px 0 10px;
+    }
+    .status .card {
+      background: var(--card);
+      padding: 10px;
+      border-radius: 14px;
+      text-align: center;
+    }
+    .status .label { font-size: 12px; color: var(--muted); }
+    .status .value { font-size: 18px; font-weight: 700; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 12px 0 16px;
+    }
+    .hole {
+      position: relative;
+      width: 100%;
+      padding-bottom: 100%;
+      border-radius: 18px;
+      overflow: hidden;
+      background: var(--card);
+      box-shadow: inset 0 2px 8px rgba(0,0,0,.08);
+    }
+    .mole {
+      position: absolute;
+      left: 10%; right: 10%; bottom: 10%;
+      height: 0; padding-bottom: 50%;
+      border-radius: 12px;
+      background: var(--danger);
+      transform: translateY(120%);
+      transition: transform .12s ease;
+      outline: none;
+      touch-action: none;
+    }
+    .mole.up { transform: translateY(0%); }
+    .controls {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin: 6px 0 12px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 12px 16px;
+      border: none;
+      border-radius: 12px;
+      background: var(--acc);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .ghost { background: transparent; color: var(--fg); border: 1px solid var(--card); }
+
+    .leaderboard {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 12px;
+      margin-top: 6px;
+    }
+    .leaderboard h2 { margin: 0 0 8px; font-size: 16px; }
+    .leaderboard ol { margin: 0; padding-left: 20px; }
+    .leaderboard li { margin: 4px 0; }
+    .center { text-align: center; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      background: var(--success);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, -6px);
+    }
   </style>
 </head>
 <body>
-  <h1>Hello, <span id="username"></span>!</h1>
-  <button onclick="sendData()">Send to Bot</button>
+  <div class="container">
+    <header>
+      <div class="title">
+        <span class="chip">Mini App</span>
+        <h1>Whack-a-Mole</h1>
+      </div>
+      <div class="user">
+        <img id="avatar" alt="avatar">
+        <div>
+          <div id="name" class="name">Гость</div>
+          <div id="theme" class="theme">Тема: —</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="status">
+      <div class="card">
+        <div class="label">Время</div>
+        <div class="value"><span id="time">30</span>с</div>
+      </div>
+      <div class="card">
+        <div class="label">Счёт</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="card">
+        <div class="label">Ваш рекорд</div>
+        <div class="value" id="best">—</div>
+      </div>
+    </section>
+
+    <section class="grid" id="grid"></section>
+
+    <section class="controls">
+      <button id="startBtn">Старт</button>
+      <button id="lbBtn" class="ghost">Таблица лидеров</button>
+      <button id="shareBtn" class="ghost">Отправить боту</button>
+    </section>
+
+    <section class="leaderboard" id="leaderboard" style="display:none;">
+      <h2>Локальный ТОП-10</h2>
+      <ol id="lbList"></ol>
+      <p class="center">
+        <button id="lbClose" class="ghost">Закрыть</button>
+        <button id="clearLb" class="ghost">Очистить</button>
+      </p>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
 
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand(); // разворачивает на весь экран
+    // --- Telegram API ---
+    const tg = window.Telegram?.WebApp;
 
-    document.getElementById("username").innerText = tg.initDataUnsafe.user?.first_name;
+    // Apply theme from Telegram
+    function applyTheme() {
+      const theme = tg?.colorScheme || 'light';
+      const colors = tg?.themeParams || {};
+      document.documentElement.style.setProperty('--bg', colors.bg_color || (theme === 'dark' ? '#0f0f10' : '#ffffff'));
+      document.documentElement.style.setProperty('--fg', colors.text_color || (theme === 'dark' ? '#e6e6e6' : '#111111'));
+      document.documentElement.style.setProperty('--card', colors.secondary_bg_color || (theme === 'dark' ? '#1b1c1f' : '#f3f4f6'));
+      document.documentElement.style.setProperty('--acc', colors.button_color || '#4c8bf5');
+      document.documentElement.style.setProperty('--muted', colors.hint_color || '#808089');
+      document.documentElement.style.setProperty('--danger', '#f97316');
+      document.documentElement.style.setProperty('--success', '#10b981');
+      document.getElementById('theme').innerText = `Тема: ${theme}`;
+    }
+    tg?.onEvent('themeChanged', applyTheme);
+    applyTheme();
+    tg?.expand();
 
-    function sendData() {
-      tg.sendData(JSON.stringify({ action: "clicked_button" }));
+    // User card
+    const user = tg?.initDataUnsafe?.user;
+    const nameEl = document.getElementById('name');
+    const avatarEl = document.getElementById('avatar');
+    if (user) {
+      nameEl.innerText = user.first_name + (user.last_name ? ' ' + user.last_name : '');
+      avatarEl.src = `https://t.me/i/userpic/320/${user.username || '0'}.jpg`;
+      avatarEl.referrerPolicy = "no-referrer";
+    }
+
+    // --- Game state ---
+    const GRID_SIZE = 9;
+    let score = 0;
+    let timeLeft = 30;
+    let playing = false;
+    let tickTimer = null;
+    let moleTimer = null;
+
+    // Best score (local)
+    function getBest() {
+      const v = Number(localStorage.getItem('wam_best') || 0);
+      return Number.isFinite(v) ? v : 0;
+    }
+    function setBest(v) {
+      localStorage.setItem('wam_best', String(v));
+      updateBest();
+    }
+    function updateBest() {
+      const best = getBest();
+      document.getElementById('best').innerText = best ? String(best) : '—';
+    }
+    updateBest();
+
+    // Leaderboard (local top-10)
+    function getLB() {
+      try { return JSON.parse(localStorage.getItem('wam_lb') || '[]'); }
+      catch { return []; }
+    }
+    function setLB(lb) {
+      localStorage.setItem('wam_lb', JSON.stringify(lb.slice(0, 10)));
+    }
+    function addLBEntry(sc) {
+      const entry = {
+        score: sc,
+        name: user ? (user.first_name + (user.last_name ? ' ' + user.last_name : '')) : 'Гость',
+        user_id: user?.id || 0,
+        ts: Date.now()
+      };
+      const lb = getLB();
+      lb.push(entry);
+      lb.sort((a,b) => b.score - a.score || a.ts - b.ts);
+      setLB(lb);
+    }
+    function renderLB() {
+      const list = document.getElementById('lbList');
+      list.innerHTML = '';
+      getLB().forEach((row, i) => {
+        const li = document.createElement('li');
+        const you = (user && row.user_id === user.id) ? ' (вы)' : '';
+        li.textContent = `${row.score} — ${row.name}${you}`;
+        list.appendChild(li);
+      });
+    }
+
+    // --- Grid setup ---
+    const grid = document.getElementById('grid');
+    const holes = [];
+    for (let i = 0; i < GRID_SIZE; i++) {
+      const hole = document.createElement('div');
+      hole.className = 'hole';
+      const mole = document.createElement('button');
+      mole.className = 'mole';
+      mole.type = 'button';
+      mole.dataset.index = String(i);
+      hole.appendChild(mole);
+      holes.push(mole);
+      grid.appendChild(hole);
+    }
+
+    function randomMoleUp() {
+      if (!playing) return;
+      const idx = Math.floor(Math.random() * holes.length);
+      const mole = holes[idx];
+      mole.classList.add('up');
+      setTimeout(() => mole.classList.remove('up'), 550 + Math.random() * 380);
+    }
+
+    holes.forEach(mole => {
+      const hit = () => {
+        if (!playing) return;
+        if (mole.classList.contains('up')) {
+          mole.classList.remove('up');
+          score++;
+          updateScore();
+          try { tg?.HapticFeedback?.impactOccurred('soft'); } catch(e){}
+        }
+      };
+      mole.addEventListener('pointerdown', hit);
+      mole.addEventListener('click', e => e.preventDefault()); // prevent double on mobile
+    });
+
+    function updateScore() {
+      document.getElementById('score').innerText = String(score);
+    }
+    function updateTimer() {
+      document.getElementById('time').innerText = String(timeLeft);
+    }
+
+    // --- Game flow ---
+    function startGame() {
+      if (playing) return;
+      playing = true;
+      score = 0;
+      timeLeft = 30;
+      updateScore(); updateTimer();
+      disableStart(true);
+
+      tickTimer = setInterval(() => {
+        timeLeft--;
+        updateTimer();
+        if (timeLeft <= 0) endGame();
+      }, 1000);
+
+      moleTimer = setInterval(randomMoleUp, 520);
+    }
+
+    function endGame() {
+      if (!playing) return;
+      playing = false;
+      clearInterval(tickTimer); clearInterval(moleTimer);
+      disableStart(false);
+
+      // Save best & leaderboard (local)
+      const best = getBest();
+      if (score > best) setBest(score);
+      addLBEntry(score);
+
+      showToast(`Итог: ${score} очков`);
+      try {
+        tg?.showPopup?.({
+          title: 'Игра окончена',
+          message: `Ваш результат: ${score}`,
+          buttons: [{id:'ok', type:'default', text:'OK'}]
+        });
+      } catch(e){}
+    }
+
+    function disableStart(v) {
+      document.getElementById('startBtn').disabled = v;
+      if (v) {
+        tg?.MainButton?.setText('Идёт игра…');
+        tg?.MainButton?.disable();
+      } else {
+        tg?.MainButton?.setText('Старт');
+        tg?.MainButton?.enable();
+      }
+    }
+
+    // --- UI controls ---
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('lbBtn').addEventListener('click', () => {
+      renderLB();
+      document.getElementById('leaderboard').style.display = 'block';
+    });
+    document.getElementById('lbClose').addEventListener('click', () => {
+      document.getElementById('leaderboard').style.display = 'none';
+    });
+    document.getElementById('clearLb').addEventListener('click', () => {
+      localStorage.removeItem('wam_lb');
+      renderLB();
+    });
+
+    // Send score to bot (optional)
+    document.getElementById('shareBtn').addEventListener('click', () => {
+      const payload = {
+        type: 'whack_a_mole_result',
+        score,
+        best: getBest(),
+        at: Date.now()
+      };
+      try {
+        tg?.sendData?.(JSON.stringify(payload));
+        showToast('Отправлено боту');
+      } catch (e) {
+        showToast('Не удалось отправить');
+      }
+    });
+
+    // MainButton integration
+    try {
+      tg?.MainButton?.setText('Старт');
+      tg?.MainButton?.onClick(startGame);
+      tg?.MainButton?.show();
+    } catch(e){}
+
+    // Toast helper
+    const toast = document.getElementById('toast');
+    let toastTimer = null;
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
     }
   </script>
 </body>
